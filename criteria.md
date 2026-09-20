@@ -19,12 +19,11 @@ pipeline earns credit; *"80% seemed reasonable"* does not.
 
 ## 1. Retrieved chunks contain the answer
 
-For at least 4 of my 5 test questions, the retrieved chunks include one that
-contains the answer.
+For at least 4 of my 5 test questions, the retrieved chunks include one that contains the answer.
 
 **Why this target:**
-<!-- e.g. "One of my questions is about a topic only two documents mention, so
-     I expect that one to be hard." -->
+
+I chose 4 out of 5 because some information in the City Guides may appear in only one section or document, probably making it harder.
 
 ---
 
@@ -33,64 +32,41 @@ contains the answer.
 Every answer the system produces names at least one source document.
 
 **Why this target:**
-<!-- Why all five and not four? What about your setup makes that achievable —
-     or what would have to go wrong for it not to be? -->
+
+Since every answer should come from the documents in the corpus (and where I got the questions from) I expect the system to consistently identify where its information came from.
 
 ---
 
 ## 3. The relevance gate stops out-of-corpus questions
 
 When I ask a question my documents clearly don't cover, the relevance gate
-stops it and the system returns "I don't have enough information about that" —
-in at least 4 of 5 tries.
+stops it and the system returns "I don't have enough information about that" — in at least 4 of 5 tries.
 
-<!-- The five questions are the ones in `OUT_OF_SCOPE` at the bottom of
-     `questions.py`, and `run_eval.py` puts them through the gate and writes
-     what happened into your run log. Swap them for your own if you'd rather —
-     just keep five of them, or the "4 of 5" above has nothing to be 4 of. -->
 
 **Why this target:**
-<!-- What did your distances look like when you set the cutoff in Milestone 4?
-     Was there a clean gap, or did the two groups overlap? -->
+
+I chose 4 of 5 because the City Guides cover travel topics such as towns, transport, food, and accessibility, so an unrelated question may still share general words with a guide. I still want the gate to reject nearly all clearly unrelated questions instead of letting the model guess.
 
 ---
 
-## 4. Something about your chunks
+## 4. Chunks preserve + keep sentences complete
 
-<!-- YOU WRITE THIS ONE.
-
-     How would you know if your chunks were the right size? Name something
-     countable or observable.
-
-     Examples of the right shape — don't copy these, they should come from
-     what you actually saw in Milestone 3:
-       - "At least 4 of 5 sampled chunks read as a complete thought, with no
-          sentence cut in half at either end."
-       - "No chunk is shorter than 200 characters, since anything below that
-          in my corpus turned out to be a heading with no content under it." -->
-
+At least 4 of 5 sampled chunks begin and end with complete sentences rather than cutting a sentence in half.
 
 
 **Why this target:**
-
+The City Guides use headings followed by descriptive paragraphs, and an answer may depend on several sentences in one section. I want chunks to preserve those sentences so important information is not split awkwardly. I chose 4 out of 5 because a chunk boundary can occasionally fall near the middle of a paragraph.
 
 
 ---
 
 ## 5. Your choice
 
-<!-- YOU WRITE THIS ONE TOO.
 
-     Pick something you actually care about getting right. It could be about
-     speed, about refusals, about a particular kind of question your corpus
-     handles badly, about source attribution being correct rather than merely
-     present — anything, as long as it names a number or an observable
-     outcome. -->
-
-
+For at least 4 out of my 5 test questions, the final answer contains a word or phrase defined (set as expected) for that question in questions.py file.
 
 **Why this target:**
-
+The expects field represents a key fact that should appear in a correct answer. I chose 4 out of 5 because one answer may express the correct information using slightly different wording than what i wrote myself in the questions.py file.
 
 
 ---
