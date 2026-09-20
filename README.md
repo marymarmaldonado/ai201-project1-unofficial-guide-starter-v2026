@@ -21,11 +21,9 @@
 
 ## What This Does
 
-<!-- Three or four sentences. Which corpus you picked, and the kinds of
-     questions your system answers. Write it for someone who has never seen
-     this repo.
+## What This Does
 
-     Milestone 5. -->
+This project is a retrieval-augmented question answering system built around the `city_guides` corpus. The corpus contains structured Markdown travel guides for different towns and regional topics (transportation, accessibility, food, and seasonal travel). The system retrieves the most relevant guide sections for a question, checks whether the retrieved information is relevant enough to answer, and then generates a grounded response using only those documents. It can answer specific questions about places in the guides.
 
 ## Chunking Strategy
 
@@ -178,9 +176,9 @@ I chose a cutoff of 0.65 because my five in-corpus questions had best distances 
 
      Milestone 5. -->
 
-**1.**
+**1.** I used AI to review my five acceptance criteria by asking how each one could be tested using only the wording of the criterion. This helped me check whether the criteria were specific and measurable enough for someone else to evaluate. I kept the final criteria based on my own corpus.
 
-**2.**
+**2.** I used AI to help me interpret the retrieval distance results from my five in-corpus questions and five out-of-scope questions. It helped me compare the two groups and think through where a relevance cutoff could go. I chose the final cutoff of 0.65 based on the actual distances from my own retrieval results.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
