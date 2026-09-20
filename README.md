@@ -130,14 +130,21 @@ a minor injuries unit locally with limited hours.
 <!-- One complete question and answer, pasted as text, with the source line
      visible. Milestone 4. -->
 
-**Question:**
+**Question:** Is the seafood at Halden Bay fresh?
 
 **Answer:**
 
 ```
+Yes, Halden Bay's seafood is genuinely fresh because the two harbour restaurants buy directly from boats that land in the early morning.
+
+This comes from *guide_eating.md* and *guide_halden_bay.md*.
+
+Sources retrieved: guide_eating.md, guide_halden_bay.md
 ```
 
-**My relevance cutoff:**
+**My relevance cutoff:** 0.65
+
+I chose a cutoff of 0.65 because my five in-corpus questions had best distances from 0.2679 to 0.6003, while the five out-of-scope questions ranged from 0.8350 to 0.9968. This leaves a clear gap between supported and unsupported questions.
 
 <!-- The number you set in config.py, and how you got there.
 
@@ -149,8 +156,16 @@ a minor injuries unit locally with limited hours.
      Milestone 4. -->
 
 | Question | In corpus? | Best distance |
-|---|---|---|
-|  |  |  |
+| What cities are the most accessible or walkable? | Yes | 0.6003 |
+| Is the seafood at Halden Bay fresh? | Yes | 0.2679 |
+| Where is Corry Vale's closest hospital? | Yes | 0.3020 |
+| If I visit Elder Ness, will I see birds? | Yes | 0.3736 |
+| How many people reside in Marchwood? | Yes | 0.4150 |
+| What is the capital of Mongolia? | No | 0.8463 |
+| How do I change the oil in a diesel engine? | No | 0.9032 |
+| Who won the 1994 World Cup? | No | 0.9968 |
+| What is the recommended dosage of ibuprofen for a headache? | No | 0.8350 |
+| How do I write a for loop in Rust? | No | 0.8365 |
 
 ## How I Used AI
 
