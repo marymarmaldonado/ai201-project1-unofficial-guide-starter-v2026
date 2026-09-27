@@ -21,8 +21,6 @@
 
 ## What This Does
 
-## What This Does
-
 This project is a retrieval-augmented question answering system built around the `city_guides` corpus. The corpus contains structured Markdown travel guides for different towns and regional topics (transportation, accessibility, food, and seasonal travel). The system retrieves the most relevant guide sections for a question, checks whether the retrieved information is relevant enough to answer, and then generates a grounded response using only those documents. It can answer specific questions about places in the guides.
 
 ## Chunking Strategy
@@ -179,6 +177,8 @@ I chose a cutoff of 0.65 because my five in-corpus questions had best distances 
 **1.** I used AI to review my five acceptance criteria by asking how each one could be tested using only the wording of the criterion. This helped me check whether the criteria were specific and measurable enough for someone else to evaluate. I kept the final criteria based on my own corpus.
 
 **2.** I used AI to help me interpret the retrieval distance results from my five in-corpus questions and five out-of-scope questions. It helped me compare the two groups and think through where a relevance cutoff could go. I chose the final cutoff of 0.65 based on the actual distances from my own retrieval results.
+
+**3.** In Unit 2, I used AI to help me review the results of my before evaluation and compare them against the acceptance criteria I had already written. This helped me notice that Criterion 5 was measuring exact wording because I had used full sentences for my `expects` values. I decided to revise the criterion and use shorter key phrases so the evaluation measured whether the correct information was present rather than whether the wording matched exactly.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
@@ -349,13 +349,15 @@ My before run showed that Criterion 5 was failing even when the generated answer
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunks contain the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Chunks preserve complete sentences | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 5. Answers contain the expected information | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
 
 **Did it help?**
+
+Yes, but the improvement was to the evaluation rather than to the RAG system itself. Before the change, Criterion 5 scored 1/5 in all three runs because most of my `expects` values were complete sentences and the generated answers used different wording. After changing the `expects` values to short phrases representing the key facts, Criterion 5 scored 5/5 in all three runs. This showed that the original issue was the way I measured the answers, not that the answers were factually wrong
 
 <!-- Say plainly whether it did, and how you know. If it made things worse,
      say that — a change that backfired, honestly reported, earns full credit
@@ -373,6 +375,7 @@ My before run showed that Criterion 5 was failing even when the generated answer
      not.
 
      Milestone 5. -->
+After the change, all five criteria were met in all three runs, so there are no remaining misses against the criteria I originally set. However, the first criterion about accessible or walkable cities still had a relatively high best retrieval distance of 0.6003 compared with the other in-corpus questions. If I continued improving the system, I would investigate whether retrieval for broader comparison questions could be made stronger, even though it currently passes the relevance cutoff.
 
 ## What I'd Do Differently
 
@@ -380,3 +383,4 @@ My before run showed that Criterion 5 was failing even when the generated answer
      differently, and why?
 
      Milestone 5. -->
+I would write Criterion 5 differently from the beginning. Instead of checking whether an answer contains a full expected sentence, I would define each `expects` value as a short keyword or key phrase representing the fact that must appear in a correct answer. That would make the criterion test the correctness of the information rather than the model's exact wording.
