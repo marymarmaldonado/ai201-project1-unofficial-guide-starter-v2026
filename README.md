@@ -295,11 +295,11 @@ Files used: guide_walking.md and guide_accessibility.md
 
 | # | Criterion | Verdict | How I decided |
 |---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
+| 1 | Retrieved chunks contain the answer | MET | All 5 test questions retrieved the information needed to answer them in each run, which exceeded my target of at least 4 of 5. |
+| 2 | Every answer names a source | MET | All 5 answers named at least one source document in all three runs, meeting my target of 5 of 5. |
+| 3 | Gate stops out-of-corpus questions | MET | The relevance gate refused all 5 out-of-scope questions, exceeding my target of at least 4 of 5. |
+| 4 | Chunks preserve complete sentences | MET | All 5 sampled chunks contained complete sentences without being cut off at the beginning or end, exceeding my target of at least 4 of 5. |
+| 5 | Answers contain the expected information | MISSED | Only 1 of 5 answers consistently contained the exact `expects` value. I realized that I had written most of my `expects` values as complete sentences instead of short keywords or phrases, so answers that were factually correct were counted as misses when the model expressed the same information using different wording. |
 
 ## Diagnoses
 
