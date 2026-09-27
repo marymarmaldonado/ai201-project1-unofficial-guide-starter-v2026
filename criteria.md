@@ -68,6 +68,9 @@ For at least 4 out of my 5 test questions, the final answer contains a word or p
 **Why this target:**
 The expects field represents a key fact that should appear in a correct answer. I chose 4 out of 5 because one answer may express the correct information using slightly different wording than what i wrote myself in the questions.py file.
 
+> **Revised in Unit 2:** For at least 4 of my 5 test questions, the final answer contains the key fact represented by the `expects` value, even if the wording is different.
+>
+> **Why revised:** I originally wrote most of my `expects` values as complete sentences instead of short keywords or phrases. Because of that, factually correct answers were counted as misses when the model expressed the same information using different wording. The revised criterion measures whether the correct information is present instead of requiring an exact phrase match.
 
 ---
 
