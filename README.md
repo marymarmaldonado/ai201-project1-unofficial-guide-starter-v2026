@@ -329,7 +329,13 @@ Files used: guide_walking.md and guide_accessibility.md
 
 For example, the accessibility question expected a full sentence naming Thornby Wells, Marchwood, and Brightwater, while the generated answer correctly discussed those places using different wording. The failure was therefore caused by the way I defined and measured the expected answer rather than by retrieval or generation.
 
-## The Improvement
+### Additional observation after revising Criterion 5
+
+After correcting the Criterion 5 measurement issue, all five criteria were met. However, I noticed that the accessibility/walkability question had the highest valid retrieval distance at `0.6003`, compared with much lower distances for my other in-corpus questions.
+
+**Stage:** Retrieval / relevance gate
+
+**Mechanism:** The broad accessibility question produced a similarity distance fairly close to my `0.65` relevance cutoff. At the same time, the closest out-of-scope question had a much higher distance of `0.835`. This suggested that the relevance gate could potentially be tightened while still allowing the valid questions in my test set through.
 
 ## The Improvement
 
@@ -338,6 +344,14 @@ I changed the `expects` values in `questions.py` from full-sentence answers to s
 
 **Why I picked it:**  
 My before run showed that Criterion 5 was failing even when the generated answers were factually correct because the expected values were written as complete sentences. Shorter expected phrases make the check measure whether the answer contains the important fact instead of whether the model used exactly the same wording.
+
+### System improvement
+
+**What I changed:**  
+I tightened the relevance cutoff from `0.65` to `0.62`.
+
+**Why I picked it:**  
+After correcting Criterion 5, all five criteria were met, but the accessibility/walkability question had the highest valid retrieval distance at `0.6003`. The closest out-of-scope question had a much higher distance of `0.835`. I wanted to test whether I could make the relevance gate stricter without rejecting any of my valid test questions.
 
 <!-- Connect it to a specific diagnosis above in one sentence. If you can't,
      you picked a fix because it sounded impressive. -->
@@ -355,9 +369,15 @@ My before run showed that Criterion 5 was failing even when the generated answer
 | 4. Chunks preserve complete sentences | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
 | 5. Answers contain the expected information | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
 
+The final after run used a relevance cutoff of `0.62`. The accessibility/walkability question still passed the gate with a best distance of `0.6003`, and all five out-of-scope questions were still refused.
+
 **Did it help?**
 
-Yes, but the improvement was to the evaluation rather than to the RAG system itself. Before the change, Criterion 5 scored 1/5 in all three runs because most of my `expects` values were complete sentences and the generated answers used different wording. After changing the `expects` values to short phrases representing the key facts, Criterion 5 scored 5/5 in all three runs. This showed that the original issue was the way I measured the answers, not that the answers were factually wrong
+**Did it help?**
+
+The evaluation correction helped Criterion 5 measure what I originally intended, increasing its measured result from 1/5 to 5/5.
+
+The actual system improvement did not increase the overall pass rates because all five criteria were already passing after the evaluation correction. However, tightening the relevance cutoff from `0.65` to `0.62` made the relevance gate stricter without reducing performance on my test set. All five valid questions still passed the gate, including the accessibility question at `0.6003`, while all five out-of-scope questions continued to be refused.
 
 <!-- Say plainly whether it did, and how you know. If it made things worse,
      say that — a change that backfired, honestly reported, earns full credit
@@ -375,7 +395,9 @@ Yes, but the improvement was to the evaluation rather than to the RAG system its
      not.
 
      Milestone 5. -->
-After the change, all five criteria were met in all three runs, so there are no remaining misses against the criteria I originally set. However, the first criterion about accessible or walkable cities still had a relatively high best retrieval distance of 0.6003 compared with the other in-corpus questions. If I continued improving the system, I would investigate whether retrieval for broader comparison questions could be made stronger, even though it currently passes the relevance cutoff.
+After the final system change, all five criteria were met in all three runs, so there are no remaining misses against my current criteria. However, the accessibility/walkability question still has a relatively high best retrieval distance of `0.6003`, which is fairly close to the new `0.62` relevance cutoff.
+
+If I continued improving the system, I would test more broad or differently worded questions before tightening the cutoff any further.
 
 ## What I'd Do Differently
 
