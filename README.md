@@ -323,7 +323,7 @@ Files used: guide_walking.md and guide_accessibility.md
 
      **Criterion 5 — Answers contain the expected information**
 
-**Stage:** Evaluation / measurement
+**Stage:** Evaluation / Generation
 
 **Mechanism:** The system often produced factually correct answers, but most of my original `expects` values were written as complete sentences. Because the criterion checked whether the answer contained that exact wording, correct answers were counted as misses when the model phrased the same fact differently.
 
@@ -370,8 +370,6 @@ After correcting Criterion 5, all five criteria were met, but the accessibility/
 | 5. Answers contain the expected information | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
 
 The final after run used a relevance cutoff of `0.62`. The accessibility/walkability question still passed the gate with a best distance of `0.6003`, and all five out-of-scope questions were still refused.
-
-**Did it help?**
 
 **Did it help?**
 
