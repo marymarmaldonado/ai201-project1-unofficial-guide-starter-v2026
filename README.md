@@ -321,6 +321,14 @@ Files used: guide_walking.md and guide_accessibility.md
 
      Milestone 3. -->
 
+     **Criterion 5 — Answers contain the expected information**
+
+**Stage:** Evaluation / measurement
+
+**Mechanism:** The system often produced factually correct answers, but most of my original `expects` values were written as complete sentences. Because the criterion checked whether the answer contained that exact wording, correct answers were counted as misses when the model phrased the same fact differently.
+
+For example, the accessibility question expected a full sentence naming Thornby Wells, Marchwood, and Brightwater, while the generated answer correctly discussed those places using different wording. The failure was therefore caused by the way I defined and measured the expected answer rather than by retrieval or generation.
+
 ## The Improvement
 
 **What I changed:**
