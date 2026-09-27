@@ -207,15 +207,80 @@ I chose a cutoff of 0.65 because my five in-corpus questions had best distances 
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunks contain the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Chunks preserve complete sentences | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 5. Answers contain the expected information | 4 of 5 | 1/5 | 1/5 | 1/5 | MISSED |
 
 <!-- Underneath, paste the REAL output for each criterion from one of your
      runs — the actual text your system produced, not a description of it.
      Name the file and function that produced it. -->
+
+**Criterion 1 — Retrieved chunks contain the answer**
+
+Produced by: `run_eval.py::main`  
+Retrieval: `store.py::search`  
+Chunks: `chunker.py::split_documents`
+
+Question: `Is the seafood at Halden Bay fresh?`
+
+```text
+Best distance: 0.2679
+Sources retrieved: guide_eating.md, guide_halden_bay.md
+
+Yes, the seafood in Halden Bay is genuinely fresh because the two harbour restaurants buy directly from the boats that land in the early morning.
+
+This comes from guide_eating.md and guide_halden_bay.md.
+```
+
+**Criterion 2 — Every answer names a source**
+
+Produced by: `run_eval.py::main`
+
+Question: `How many people reside in Marchwood?`
+
+```text
+According to the provided documents, Marchwood has a population of 180,000 people (guide_marchwood.md).
+```
+
+**Criterion 3 — Gate stops out-of-corpus questions**
+
+Produced by: `run_eval.py::check_out_of_scope`
+
+```text
+What is the capital of Mongolia? — best distance 0.846 — refused
+How do I change the oil in a diesel engine? — best distance 0.903 — refused
+Who won the 1994 World Cup? — best distance 0.997 — refused
+What is the recommended dosage of ibuprofen for a headache? — best distance 0.835 — refused
+How do I write a for loop in Rust? — best distance 0.836 — refused
+
+Gate refused 5 of 5.
+```
+
+**Criterion 4 — Chunks preserve complete sentences**
+
+Produced by: `chunker.py::split_documents`
+
+```text
+# Corry Vale
+
+## When to go
+
+May to September. Outside those months the pub in the third village closes, the farm shop reduces its hours, and several footpaths become genuinely boggy rather than merely wet. The road is not gritted above the second village and is impassable in snow.
+```
+
+**Criterion 5 — Answers contain the expected information**
+
+Produced by: `run_eval.py::main`
+
+Question: `What cities are the most accessible or walkable?`
+
+```text
+Based on the provided documents, Thornby Wells is described as the region's most accessible town on foot, being flat, compact, and having level streets and gardens. Marchwood has a modern tram network with level boarding, step-free attractions, and a city museum and covered market that are step-free. Brightwater is also noted as level along the river and through the centre, with a step-free mill museum.
+
+Files used: guide_walking.md and guide_accessibility.md
+```
 
 ## Verdicts
 
