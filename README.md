@@ -331,9 +331,13 @@ For example, the accessibility question expected a full sentence naming Thornby 
 
 ## The Improvement
 
-**What I changed:**
+## The Improvement
 
-**Why I picked it:**
+**What I changed:**  
+I changed the `expects` values in `questions.py` from full-sentence answers to short keywords or phrases that represent the key fact each correct answer should contain.
+
+**Why I picked it:**  
+My before run showed that Criterion 5 was failing even when the generated answers were factually correct because the expected values were written as complete sentences. Shorter expected phrases make the check measure whether the answer contains the important fact instead of whether the model used exactly the same wording.
 
 <!-- Connect it to a specific diagnosis above in one sentence. If you can't,
      you picked a fix because it sounded impressive. -->
