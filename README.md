@@ -404,3 +404,22 @@ If I continued improving the system, I would test more broad or differently word
 
      Milestone 5. -->
 I would write Criterion 5 differently from the beginning. Instead of checking whether an answer contains a full expected sentence, I would define each `expects` value as a short keyword or key phrase representing the fact that must appear in a correct answer. That would make the criterion test the correctness of the information rather than the model's exact wording.
+
+---
+
+## Capstone
+
+**What This Extends**
+
+This extends my Unit 1/2 system, **The Unofficial Guide**: a retrieval-augmented question answering system over the `city_guides` corpus (chunk by `##` section → embed locally with ChromaDB's `all-MiniLM-L6-v2` → retrieve top 5 → relevance gate at `0.62` → grounded answer from Gemini). Until now it only ever ran as one-off `python app.py ask` commands in my editor's terminal, and nothing it did was recorded anywhere except whatever I happened to copy out of the terminal. What's new is the operational layer: the HTTP service in `serve.py` now writes a structured log record for every request (including refused questions, bad input and errors), with timing per stage and the tokens each request used, and there's a documented single-command run path and a script that measures what one request costs.
+
+**The Shape**
+
+**Shape A — Deploy and instrument.** I'm adding the run path, the instrumentation (a JSON-lines log with named fields for every `/ask` request, written to `logs/requests.jsonl`), and the measurements that come out of it (latency and tokens per request, averaged over real runs). The retrieval, gate and answer logic stay exactly as they were at the end of Unit 2.
+
+Out of scope — things I considered and decided not to do this unit:
+
+- **Hosting it.** I'm taking Path B (local with logs). The system loads ChromaDB and a local embedding model, which is tight on a 512 MB free host, and hosting isn't what I want to spend the unit on.
+- **Changing the pipeline.** I'm not touching the chunker, the `0.62` relevance cutoff, `TOP_K`, or the grounding prompt. If a number changes this unit, it should be because of something I measured, not because I retuned retrieval at the same time.
+- **Failure hardening.** I'm not adding new timeouts or retry logic around the Gemini call (that's Shape B). I'm only making sure that when something fails, it leaves a log record instead of disappearing.
+- **A dashboard or UI.** The log is a file I read back with a script, not a web page.
