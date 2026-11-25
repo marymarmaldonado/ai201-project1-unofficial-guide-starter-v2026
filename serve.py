@@ -201,6 +201,24 @@ def main():
     # strangers can reach it. Off unless you ask for it.
     debug = os.getenv("AI201_DEBUG", "0") == "1"
 
+    # Capstone run path: a clean checkout has no chroma_db/, so build the
+    # index here if it's missing. One command (python serve.py) then gets you
+    # from a fresh clone to a service that can answer.
+    from store import index_exists
+
+    if not index_exists(config.CORPUS):
+        import argparse
+
+        from app import cmd_index
+
+        print("No index found for this corpus. Building it first (one time only)...\n")
+        cmd_index(argparse.Namespace(corpus=config.CORPUS, variant="default"))
+        print()
+
+    import runlog
+
+    print(f"Logging every request to {runlog.LOG_PATH}")
+    print(f"Response cache: {'ON' if config.CACHE_ENABLED else 'OFF'}\n")
     print(f"Serving The Unofficial Guide on http://localhost:{port}")
     print(f"Corpus: {config.CORPUS}    (Ctrl-C to stop)\n")
     print("Try it from another terminal:\n")
