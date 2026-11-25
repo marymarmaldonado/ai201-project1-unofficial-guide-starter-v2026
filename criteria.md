@@ -109,3 +109,56 @@ The expects field represents a key fact that should appear in a correct answer. 
      The whole reason the originals stay visible is so someone can see what you
      said before you knew the answer.
      ───────────────────────────────────────────────────────────────────────── -->
+
+---
+
+## Capstone criteria
+
+## 1. Every trial request is observable
+
+In each of 3 trials, at least 18 of 18 requests leave a matching structured log
+record in `logs/trials_before.jsonl`, with the request ID returned to the caller
+matching the record in the log.
+
+**Why this target:** Observability is the central extension. Every request
+category is included in the battery, so 18/18 catches missing success, refusal,
+bad-input, and injected-failure records instead of only checking the happy path.
+
+## 2. Real in-corpus requests complete successfully
+
+In each of 3 trials, at least 4 of 5 real in-corpus questions return HTTP 200
+with a generated answer rather than an HTTP 500 or a relevance refusal.
+
+**Why this target:** The model can return transient 503s, so 5/5 would be
+unreasonably strict for a hosted model. Four of five still requires repeated
+successful end-to-end answers while leaving room for one real provider failure.
+
+## 3. Out-of-scope requests are refused without model calls
+
+In each of 3 trials, at least 5 of 5 out-of-scope questions return the exact
+refusal `"I don't have enough information about that."`, with zero recorded
+total tokens.
+
+**Why this target:** The gate behavior is deterministic and should not spend
+model tokens. Five out of five is strict because this is a fixed, already-measured
+bad path rather than a model-generated fact.
+
+## 4. Malformed input consistently becomes a 400
+
+In each of 3 trials, at least 5 of 5 malformed requests return HTTP 400, leave
+a `bad_request` log record, and produce no HTTP 500.
+
+**Why this target:** A request with no usable question should be separated from
+provider or server failures. The target is 5/5 because malformed input is
+entirely under the application's control.
+
+## 5. Injected provider failures are logged as errors
+
+In each of 3 trials, all 3 injected failures—the invalid key, 503 overload, and
+timeout—return a JSON error response and leave a matching log record with
+`status: "error"` and an error message.
+
+**Why this target:** The criterion tests the failure side of the operational
+layer. It is strict at 3/3 because the run harness deliberately injects these
+three cases, so a missing or unlogged error would show a real observability
+gap rather than an external-model fluctuation.
