@@ -259,11 +259,25 @@ def generate(prompt: str, system: str | None = None, cache: bool = True) -> str:
                 or "resource" in message and "exhaust" in message
                 or "rate" in message and "limit" in message
             )
-            if not rate_limited:
+            # Capstone improvement: a 503 / UNAVAILABLE ("model is currently
+            # experiencing high demand") is the provider saying "try again
+            # later" — temporary, like a 429. Before this, it was raised on the
+            # first attempt and the caller got a 500. Permanent errors (a bad
+            # key, a bad request) still raise immediately.
+            overloaded = (
+                "503" in message
+                or "unavailable" in message
+                or "high demand" in message
+                or "overloaded" in message
+            )
+            if not (rate_limited or overloaded):
                 raise
+            if attempt == config.MAX_RETRIES - 1:
+                break  # no point sleeping after the last attempt
             backoff = 2 ** attempt
+            reason = "rate limit" if rate_limited else "model overloaded"
             print(
-                f"  [rate limit] service pushed back. Retrying in {backoff}s "
+                f"  [{reason}] service pushed back. Retrying in {backoff}s "
                 f"(attempt {attempt + 1} of {config.MAX_RETRIES}).",
                 file=sys.stderr,
                 flush=True,
@@ -271,8 +285,9 @@ def generate(prompt: str, system: str | None = None, cache: bool = True) -> str:
             time.sleep(backoff)
 
     raise RuntimeError(
-        f"Still rate limited after {config.MAX_RETRIES} attempts. Wait a "
-        f"minute and try again — your key is fine.\nLast error: {last_error}"
+        f"Still failing after {config.MAX_RETRIES} attempts (rate limited or "
+        f"model overloaded). Wait a minute and try again — your key is fine.\n"
+        f"Last error: {last_error}"
     )
 
 
