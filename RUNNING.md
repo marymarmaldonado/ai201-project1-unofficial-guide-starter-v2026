@@ -1,5 +1,87 @@
 # Running this project
 
+## Capstone run path — Path B (local with logs)
+
+The capstone version of The Unofficial Guide runs as a local HTTP service on
+my laptop, started by **one command**, and writes a structured log record for
+every request to `logs/requests.jsonl`. I chose Path B over hosting because the
+system loads ChromaDB and a local ~80 MB embedding model, which is tight on a
+512 MB free host.
+
+### The command
+
+From the repo folder, with the virtual environment active:
+
+```powershell
+python serve.py
+```
+
+That's it. On a clean checkout there is no `chroma_db/` yet, so the first start
+builds the index itself (it downloads the embedding model the very first time),
+then starts serving on `http://localhost:5000`. Later starts skip straight to
+serving.
+
+For measuring cost, start it with the response cache off, so every request is
+a real model call:
+
+```powershell
+$env:AI201_CACHE="0"; python serve.py          # Windows PowerShell
+AI201_CACHE=0 python serve.py                   # macOS / Linux
+```
+
+### One-time setup (from a fresh clone)
+
+```powershell
+git clone https://github.com/marymarmaldonado/ai201-project1-unofficial-guide-starter-v2026.git
+cd ai201-project1-unofficial-guide-starter-v2026
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements-lock.txt
+copy .env.example .env        # then put your own GEMINI_API_KEY in .env
+python serve.py
+```
+
+### Talking to it
+
+```powershell
+# is it up, and is there an index?
+Invoke-RestMethod http://localhost:5000/health
+
+# ask a question
+Invoke-RestMethod -Method Post http://localhost:5000/ask -ContentType "application/json" -Body '{"question": "Is the seafood at Halden Bay fresh?"}'
+```
+
+```bash
+curl http://localhost:5000/health
+curl -X POST http://localhost:5000/ask -H "Content-Type: application/json" \
+  -d '{"question": "Is the seafood at Halden Bay fresh?"}'
+```
+
+### What the environment needs
+
+| Thing | Value |
+|---|---|
+| Python | PYTHON_VERSION_HERE |
+| Dependencies | pinned in `requirements-lock.txt` (`pip freeze` from the environment the run log came from); `requirements.txt` holds the ranges |
+| Embedding model | ChromaDB's bundled `all-MiniLM-L6-v2` ONNX model, about 80 MB, downloaded on first index build from `chroma-onnx-models.s3.amazonaws.com` and cached in your user folder |
+| Generation model | `gemini-3.5-flash-lite` over the Gemini API; needs `GEMINI_API_KEY` in `.env` |
+| Network | outbound HTTPS to the Gemini API, plus the model download the first time |
+| Disk | the index (`chroma_db/`) is built locally and is not committed |
+
+### Where the record goes
+
+| File | What it is |
+|---|---|
+| `logs/requests.jsonl` | one JSON object per request, appended as it happens — committed, it's the run record |
+| `python tools/read_log.py` | summary of the log: counts by status, latency, tokens |
+| `python tools/measure_cost.py` | sends 10 real questions to the running service and averages tokens and latency from the log |
+
+Point the log somewhere else with `AI201_LOG_PATH`.
+
+---
+
+# The original starter instructions (units 1–2)
+
 Everything about how the starter works and how to use it.
 
 ---
