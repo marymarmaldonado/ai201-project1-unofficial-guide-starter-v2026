@@ -41,6 +41,13 @@ copy .env.example .env        # then put your own GEMINI_API_KEY in .env
 python serve.py
 ```
 
+### Tested from a clean checkout
+
+Cloned the repo from GitHub into an empty folder, created a fresh virtual environment, and ran
+`pip install -r requirements-lock.txt` (installed cleanly on Python 3.13), then `python serve.py` with no `chroma_db/`: it
+detected the missing index and started building it on its own. The first build needs the embedding model from
+`chroma-onnx-models.s3.amazonaws.com`; if that host is blocked, the build stops at that step with a SHA256 error.
+
 ### Talking to it
 
 ```powershell
@@ -61,7 +68,7 @@ curl -X POST http://localhost:5000/ask -H "Content-Type: application/json" \
 
 | Thing | Value |
 |---|---|
-| Python | PYTHON_VERSION_HERE |
+| Python | 3.13 (the run record was produced on 3.13.12, Windows; code needs 3.10 or newer) |
 | Dependencies | pinned in `requirements-lock.txt` (`pip freeze` from the environment the run log came from); `requirements.txt` holds the ranges |
 | Embedding model | ChromaDB's bundled `all-MiniLM-L6-v2` ONNX model, about 80 MB, downloaded on first index build from `chroma-onnx-models.s3.amazonaws.com` and cached in your user folder |
 | Generation model | `gemini-3.5-flash-lite` over the Gemini API; needs `GEMINI_API_KEY` in `.env` |

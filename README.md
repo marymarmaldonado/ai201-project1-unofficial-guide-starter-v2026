@@ -564,3 +564,75 @@ All five out-of-scope answers in all three runs were exactly `"I don't have enou
 The other four criteria were met, and three of them (3, 4, 5) were set at the maximum possible target, so they couldn't be tightened. What I'd question is criterion 5: it only checks that an injected failure is *recorded*. It says nothing about whether a 503, which is temporary, should have been a failure at all. That's the same gap criterion 2 found from the other side.
 
 **Pattern:** there's only one miss, but it's the same thing the first session log showed. The service's failure handling is correct for errors that are permanent (a bad key, bad input) and wrong for errors that are temporary, because it treats them the same way.
+
+**The Improvement**
+
+**What I changed:** one change, in `generate.py::generate` (commit `03a916c`). The retry loop now treats a Gemini `503 UNAVAILABLE` ("model is currently experiencing high demand", "overloaded") as temporary, the same as a 429 rate limit, and retries it with the existing backoff (1 s, 2 s, 4 s; 4 attempts in all). Permanent errors (an invalid key, a bad request, a timeout) still raise on the first attempt. I also stopped it sleeping after the last attempt, since nothing comes after it.
+
+**Why:** it follows directly from the criterion 2 diagnosis. Both misses were 503s that the provider itself said to retry, and the old loop raised them on the first attempt because it only recognized rate-limit messages.
+
+**A note on scope:** in The Shape I listed "no new retry logic around the Gemini call" as out of scope. This fix breaks that line on purpose. The diagnosis pointed straight at the retry loop, and the brief says the improvement should follow the diagnosis. It's one condition added to a loop that already existed, not a new failure-handling layer.
+
+Re-run with `python tools/run_trials.py --label after`, three trials, nothing changed in between, same 18 requests per trial. Output: `results/capstone_2026-11-25_1512_after.md`, log records in `logs/trials_after.jsonl` (criterion 1 is checked against this file for the after run; it's the same check, the harness just writes each run's records to its own file).
+
+Before (`results/capstone_2026-11-25_1350_before.md`):
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Every trial request leaves a matching log record | 18 of 18 | 18/18 | 18/18 | 18/18 | MET |
+| 2. Real in-corpus questions get a 200 with an answer | 4 of 5 | 5/5 | 3/5 | 5/5 | MISSED |
+| 3. Out-of-scope questions refused with zero tokens | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Malformed input returns 400, logged, no 500 | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 5. Injected provider failures logged as errors | 3 of 3 | 3/3 | 3/3 | 3/3 | MET |
+
+After (`results/capstone_2026-11-25_1512_after.md`):
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Every trial request leaves a matching log record | 18 of 18 | 18/18 | 18/18 | 18/18 | MET |
+| 2. Real in-corpus questions get a 200 with an answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Out-of-scope questions refused with zero tokens | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Malformed input returns 400, logged, no 500 | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 5. Injected provider failures logged as errors | 3 of 3 | 3/3 | 3/3 | 3/3 | MET |
+
+Other numbers from the same runs, before → after: median answered-request time per trial 811 / 2,729 / 1,632 ms → 1,022 / 1,644 / 951 ms; slowest answered request 15,336 ms → 3,124 ms; mean tokens per answered request ~675–745 → ~677–680.
+
+**Did it help?** Criterion 2 went from MISSED to MET, but **I can't honestly say the fix caused that.** In the after run, Gemini never returned a real 503: every answered request in `logs/trials_after.jsonl` took exactly one model call (`model_calls: 1`), so the new retry path never ran on a real request. The after run was simply a quieter half hour at the provider. The latency improvement above has the same cause, not my change.
+
+What does show the fix works is the injected 503, which is the same failure, forced on purpose in every trial. Before, it failed on the first attempt in about 90 ms:
+
+```json
+{"ts": "2026-11-25T17:51:07.239+00:00", "request_id": "a5c33d12", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "error", "http_status": 500, "question": "Is the seafood at Halden Bay fresh?", "answer": null, "error_type": "RuntimeError", "error": "503 UNAVAILABLE. This model is currently experiencing high demand. (injected by run_trials)", "duration_ms": 89.9, "model_calls": 1, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+```
+
+After, it was retried 4 times (`model_calls: 4`) before giving up:
+
+```json
+{"ts": "2026-11-25T19:12:20.618+00:00", "request_id": "175cd6ad", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "error", "http_status": 500, "question": "Is the seafood at Halden Bay fresh?", "answer": null, "error_type": "RuntimeError", "error": "Still failing after 4 attempts (rate limited or model overloaded). Wait a minute and try again — your key is fine.\nLast error: 503 UNAVAILABLE. This model is currently experiencing high demand. (injected by run_trials)", "duration_ms": 7048.9, "model_calls": 4, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+```
+
+So the mechanism is fixed: a 503 now gets three more chances, and a 503 that clears within about 7 s would now be an answer instead of a 500. A 503 that doesn't clear still fails and is still logged (criterion 5 stayed 3/3).
+
+**The trade-off:** a 503 that never clears now takes about 7 s to fail instead of about 0.1 s, and in run 3 it took 20.3 s. The extra 13 s is `generate.py`'s 30-requests-a-minute limiter. Every retry counts as a request, so by the third trial the retries were waiting for rate-limit slots. Retrying makes a real outage slower to report, and it spends quota that other requests could have used.
+
+**What's Still Broken**
+
+All five criteria were met in the after run, so nothing is left missing against my own targets. Two of my targets were set too low, though, and the after run shows it:
+
+- **Criterion 2 should be 5 of 5, not 4 of 5.** I set it at 4/5 specifically to tolerate a transient 503. Now that a 503 is retried, one lost question in five is exactly the failure the system should no longer have, so the target should be 5/5 in every trial. I'd also want a criterion that can't pass by luck: one that forces a 503 that clears after one retry, and checks that the question gets answered.
+- **Criterion 5 checks that an injected failure is logged, not that it's handled correctly.** It would have passed whether or not the 503 was retried. Tightened, it would read: the injected 503 is logged with `model_calls: 4`, and the invalid key and the timeout with `model_calls: 1`.
+
+Other things I know are still broken, and why I stopped:
+
+- **Every provider failure is still a 500 to the caller,** including a 503 that ran out of retries. A client can't tell "the model is overloaded, try again" from "the server is broken". I stopped because the brief allows one improvement and this would have been a second.
+- **I haven't seen the fix work on a real 503.** Gemini didn't produce one during the after run. Proving it would mean running the trials again at a busy time, and I ran out of unit.
+- **Token counts per request aren't safe under concurrent requests.** `serve.py::ask` takes the difference in `generate.py`'s session-wide totals before and after a request, so two requests at once would mix their counts. Every test here was sequential, so none of the numbers above are affected. I left it because load testing was out of scope.
+- **The cost average is over 8 requests, not 10.** Two of the ten requests in the cost run hit real 503s.
+
+**What I'd do next:** return a `503` with a `Retry-After` header when Gemini is still overloaded after the retries run out, instead of a 500. Every failure this unit produced was either the provider being temporarily unavailable or a request being genuinely wrong, and right now the caller can't tell those two apart.
+
+**How I Used AI**
+
+**1.** For the build half, I asked AI to add structured logging to `serve.py` so that every request, including failures, left a record with timing and tokens. It wrote `runlog.py` and logged all four paths (answered, refused, bad input, error). It also turned `{"question": 42}` from a crash (a 500 caused by `.strip()` on a number) into a 400, which I hadn't asked for. I kept that and wrote it down, because it was a real bug in my Unit 1 handler. I also told it to keep every commit under my name with no AI attribution lines, and checked the commit history afterwards.
+
+**2.** I wrote the five criteria myself, after looking at what the trial harness could measure. For criterion 2 I chose 4/5 because my first session log had already shown Gemini returning 503s. After the before run, I asked AI to diagnose the criterion 2 miss. It traced the miss to the retry loop in `generate.py` and suggested retrying 503s. When the after run came back 5/5, I didn't take that as proof: I checked `model_calls` in the after log, saw that no real 503 had happened, and wrote the result up as "fixed mechanism, not demonstrated on a real 503". The evidence I used is the injected 503.
