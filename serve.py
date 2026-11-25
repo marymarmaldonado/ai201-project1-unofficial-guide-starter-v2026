@@ -20,14 +20,14 @@ Why this exists: `app.py` runs once and exits, which is fine on your laptop
 and impossible to deploy. A hosted service has to stay up and wait for
 requests. This is the smallest thing that does that.
 
-⚠️ There is deliberately no logging, no timing and no metrics in this file.
-Unit 9 has you build the structured log yourself — the request line, the
-timing field everyone skips, the whole instrument-before-you-deploy exercise.
-Shipping a logger here would hand you the answer to that. Add yours in unit 9;
-this file stays the bare shell until then.
+Capstone (unit 9): every /ask request now writes one structured record to
+logs/requests.jsonl via runlog.py — timestamp, question, answer, status,
+duration and per-stage timing, and the tokens the request used. Failures
+(bad input, exceptions) are logged too, not just successes.
 """
 
 import os
+import time
 
 from flask import Flask, jsonify, request
 
@@ -65,35 +65,117 @@ def health():
 
 @app.post("/ask")
 def ask():
-    """One question in, one grounded answer out.
+    """One question in, one grounded answer out — and one log record.
 
     A refused question is a 200, not an error. The gate refusing is your
     system working — it is an answer, and the JSON says so with
     `"refused": true` so whatever calls this can tell the two apart.
+
+    Capstone: every path through this function writes exactly one record to
+    the run log (runlog.py) — answered, refused, bad input, or a crash — with
+    how long it took and how many tokens it used. The response carries the
+    same request_id so a reply can be matched to its log line.
     """
+    import generate
+    import runlog
     from app import ask_pipeline
 
-    payload = request.get_json(silent=True) or {}
-    question = (payload.get("question") or "").strip()
+    started = time.perf_counter()
+    request_id = runlog.new_request_id()
+    calls_before = generate.call_count()
+    tokens_before = generate.token_counts()
+    cache_before = generate.cache_hit_count()
+
+    base = {
+        "request_id": request_id,
+        "route": "/ask",
+        "corpus": config.CORPUS,
+        "model": config.MODEL,
+        "threshold": config.THRESHOLD,
+        "top_k": config.TOP_K,
+    }
+
+    def usage_since_start():
+        after = generate.token_counts()
+        return {
+            "model_calls": generate.call_count() - calls_before,
+            "prompt_tokens": after["prompt"] - tokens_before["prompt"],
+            "output_tokens": after["output"] - tokens_before["output"],
+            "total_tokens": after["total"] - tokens_before["total"],
+            "cache_hits": generate.cache_hit_count() - cache_before,
+        }
+
+    def elapsed_ms():
+        return round((time.perf_counter() - started) * 1000, 1)
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        payload = {}
+    raw_question = payload.get("question")
+    question = raw_question.strip() if isinstance(raw_question, str) else ""
 
     if not question:
-        return (
-            jsonify(
-                {
-                    "error": "Send JSON with a question in it, like "
-                    '{"question": "is the housing lottery random?"}'
-                }
-            ),
-            400,
+        message = (
+            "Send JSON with a question in it, like "
+            '{"question": "is the housing lottery random?"}'
         )
+        runlog.write(
+            {
+                **base,
+                "status": "bad_request",
+                "http_status": 400,
+                "question": None,
+                "answer": None,
+                "error": message,
+                "raw_body": request.get_data(as_text=True)[:200],
+                "duration_ms": elapsed_ms(),
+            }
+        )
+        return jsonify({"error": message, "request_id": request_id}), 400
 
     try:
         outcome = ask_pipeline(question, corpus=config.CORPUS)
     except Exception as exc:  # noqa: BLE001 — a reader gets this, not a traceback
-        return jsonify({"error": f"{type(exc).__name__}: {exc}"}), 500
+        runlog.write(
+            {
+                **base,
+                "status": "error",
+                "http_status": 500,
+                "question": question,
+                "answer": None,
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:500],
+                "duration_ms": elapsed_ms(),
+                **usage_since_start(),
+            }
+        )
+        return (
+            jsonify(
+                {"error": f"{type(exc).__name__}: {exc}", "request_id": request_id}
+            ),
+            500,
+        )
+
+    timings = outcome.get("timings") or {}
+    runlog.write(
+        {
+            **base,
+            "status": "refused" if outcome["refused"] else "answered",
+            "http_status": 200,
+            "question": question,
+            "answer": outcome["answer"],
+            "sources": outcome["sources"],
+            "best_distance": round(outcome["best_distance"], 4),
+            "retrieval_ms": timings.get("retrieval_ms"),
+            "generation_ms": timings.get("generation_ms"),
+            "duration_ms": elapsed_ms(),
+            **usage_since_start(),
+        }
+    )
 
     return jsonify(
         {
+            "request_id": request_id,
             "question": question,
             "answer": outcome["answer"],
             "refused": outcome["refused"],
