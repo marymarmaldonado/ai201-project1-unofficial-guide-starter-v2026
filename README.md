@@ -423,3 +423,68 @@ Out of scope — things I considered and decided not to do this unit:
 - **Changing the pipeline.** I'm not touching the chunker, the `0.62` relevance cutoff, `TOP_K`, or the grounding prompt. If a number changes this unit, it should be because of something I measured, not because I retuned retrieval at the same time.
 - **Failure hardening.** I'm not adding new timeouts or retry logic around the Gemini call (that's Shape B). I'm only making sure that when something fails, it leaves a log record instead of disappearing.
 - **A dashboard or UI.** The log is a file I read back with a script, not a web page.
+
+**Running It**
+
+Path B — local with logs. The service starts with one command, `python serve.py`, which builds the index on a clean checkout if it's missing and then serves `POST /ask` and `GET /health` on `http://localhost:5000`. The exact setup, the environment it needs, and how to talk to it are in [`RUNNING.md`](RUNNING.md). The run record is `logs/requests.jsonl`, committed in this repo.
+
+**Instrumentation**
+
+Every `POST /ask` writes exactly one JSON object per line to `logs/requests.jsonl`. The logger is `runlog.py::write`; the record is assembled in `serve.py::ask`, with per-stage timings from `app.py::ask_pipeline` and token counts read off each Gemini response by `generate.py::_record_tokens`. Failures are logged on the same path as successes — a bad request or an exception writes a record before the error goes back to the caller.
+
+| Field | What it holds |
+|---|---|
+| `ts` | ISO-8601 UTC timestamp when the request finished |
+| `request_id` | 8-character id, also returned to the caller in the JSON response |
+| `status` | `answered`, `refused` (gate said no), `bad_request` (no usable question), or `error` (an exception) |
+| `http_status` | 200 / 400 / 500 — what the caller got |
+| `question` / `answer` | what came in and what went out (answer truncated at 600 chars) |
+| `sources`, `best_distance`, `threshold`, `top_k` | what retrieval found and what the gate compared it against |
+| `duration_ms` | whole request, end to end, inside the server |
+| `retrieval_ms`, `generation_ms` | the two stages that take time (`generation_ms` is null when the gate refused) |
+| `model_calls`, `prompt_tokens`, `output_tokens`, `total_tokens`, `cache_hits` | what this one request cost, as reported by the service |
+| `error_type`, `error`, `raw_body` | on failures: the exception and message, or the body that was rejected |
+| `corpus`, `model` | which corpus and model served it |
+
+Ten entries from my first real session (25 Nov 2026), copied unedited from `logs/requests.jsonl` — eight answered questions, one refusal, one rejected input:
+
+```json
+{"ts": "2026-11-25T17:24:11.099+00:00", "request_id": "145e0fd2", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "answered", "http_status": 200, "question": "What cities are the most accessible or walkable?", "answer": "Based on the documents, Thornby Wells is described as the most accessible town on foot in the region (`guide_walking.md` and `guide_accessibility.md`), and the easiest town in the region as it is flat, compact, and everything is within three minutes of everything else (`guide_accessibility.md`). \n\nFiles used: `guide_walking.md` and `guide_accessibility.md`.", "sources": ["guide_accessibility.md", "guide_corry_vale.md", "guide_regional_transport.md", "guide_walking.md"], "best_distance": 0.6003, "retrieval_ms": 532.7, "generation_ms": 5619.1, "duration_ms": 6155.7, "model_calls": 1, "prompt_tokens": 824, "output_tokens": 85, "total_tokens": 909, "cache_hits": 0}
+{"ts": "2026-11-25T17:24:28.538+00:00", "request_id": "8792416b", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "answered", "http_status": 200, "question": "Where is Correy Vale's closest hospital?", "answer": "The nearest full hospital to Corry Vale is in Brightwater. \n\n(Source: `guide_corry_vale.md`)", "sources": ["guide_accessibility.md", "guide_corry_vale.md", "guide_thornby_wells.md", "guide_walking.md"], "best_distance": 0.3672, "retrieval_ms": 146.4, "generation_ms": 1020.1, "duration_ms": 1167.0, "model_calls": 1, "prompt_tokens": 552, "output_tokens": 28, "total_tokens": 580, "cache_hits": 0}
+{"ts": "2026-11-25T17:25:16.197+00:00", "request_id": "b8a2d6e6", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "answered", "http_status": 200, "question": "If I visit Elder Ness, will I see birds?", "answer": "Yes, you can see birds if you visit Elder Ness, as birds are the reason most visitors come, especially during the spring and autumn migration seasons (April to May and September to October). This information comes from `guide_elder_ness.md`.", "sources": ["guide_elder_ness.md"], "best_distance": 0.3736, "retrieval_ms": 125.1, "generation_ms": 45473.4, "duration_ms": 45598.9, "model_calls": 1, "prompt_tokens": 536, "output_tokens": 51, "total_tokens": 587, "cache_hits": 0}
+{"ts": "2026-11-25T17:25:24.596+00:00", "request_id": "af44401e", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "answered", "http_status": 200, "question": "How many people reside in Marchwood?", "answer": "Marchwood has 180,000 people (guide_marchwood.md).", "sources": ["guide_marchwood.md"], "best_distance": 0.415, "retrieval_ms": 108.7, "generation_ms": 6257.1, "duration_ms": 6366.1, "model_calls": 1, "prompt_tokens": 556, "output_tokens": 20, "total_tokens": 576, "cache_hits": 0}
+{"ts": "2026-11-25T17:25:46.614+00:00", "request_id": "1d7ccf70", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "answered", "http_status": 200, "question": "Is the seafood at Halden Bay fresh?", "answer": "Yes, Halden Bay's seafood is genuinely fresh because the two harbour restaurants buy directly from boats that land in the early morning. \n\nSources: `guide_eating.md` and `guide_halden_bay.md`.", "sources": ["guide_eating.md", "guide_halden_bay.md"], "best_distance": 0.2679, "retrieval_ms": 114.5, "generation_ms": 634.3, "duration_ms": 749.2, "model_calls": 1, "prompt_tokens": 677, "output_tokens": 49, "total_tokens": 726, "cache_hits": 0}
+{"ts": "2026-11-25T17:25:49.999+00:00", "request_id": "d15af05a", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "answered", "http_status": 200, "question": "Where is Correy Vale's closest hospital?", "answer": "The nearest full hospital to Corry Vale is in Brightwater. \n\n(Source: \n- `guide_corry_vale.md`\n- `guide_thornby_wells.md`)", "sources": ["guide_accessibility.md", "guide_corry_vale.md", "guide_thornby_wells.md", "guide_walking.md"], "best_distance": 0.3672, "retrieval_ms": 124.9, "generation_ms": 1209.2, "duration_ms": 1334.7, "model_calls": 1, "prompt_tokens": 552, "output_tokens": 42, "total_tokens": 594, "cache_hits": 0}
+{"ts": "2026-11-25T17:25:52.962+00:00", "request_id": "2fb3f900", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "answered", "http_status": 200, "question": "If I visit Elder Ness, will I see birds?", "answer": "Yes, you can see birds, as birds are one of the main reasons visitors come to Elder Ness, with spring (April to May) and autumn (September to October) being the migration seasons for them (guide_elder_ness.md). Additionally, there is a bird observatory that takes day visitors (guide_elder_ness.md).", "sources": ["guide_elder_ness.md"], "best_distance": 0.3736, "retrieval_ms": 131.4, "generation_ms": 777.8, "duration_ms": 909.7, "model_calls": 1, "prompt_tokens": 536, "output_tokens": 70, "total_tokens": 606, "cache_hits": 0}
+{"ts": "2026-11-25T17:25:55.828+00:00", "request_id": "39a989af", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "answered", "http_status": 200, "question": "How many people reside in Marchwood?", "answer": "Marchwood has a population of 180,000 people. \n\nSource: guide_marchwood.md", "sources": ["guide_marchwood.md"], "best_distance": 0.415, "retrieval_ms": 108.6, "generation_ms": 712.7, "duration_ms": 821.6, "model_calls": 1, "prompt_tokens": 556, "output_tokens": 26, "total_tokens": 582, "cache_hits": 0}
+{"ts": "2026-11-25T17:31:32.209+00:00", "request_id": "f294443f", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "refused", "http_status": 200, "question": "What is the capital of Mongolia?", "answer": "I don't have enough information about that.", "sources": [], "best_distance": 0.8463, "retrieval_ms": 107.3, "generation_ms": null, "duration_ms": 107.6, "model_calls": 0, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+{"ts": "2026-11-25T16:57:35.526+00:00", "request_id": "2d0cd8d6", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "bad_request", "http_status": 400, "question": null, "answer": null, "error": "Send JSON with a question in it, like {\"question\": \"is the housing lottery random?\"}", "raw_body": "{}", "duration_ms": 0.3}
+```
+
+Failed runs from the same session. The first is a real configuration failure — my `.env` key was wrong for the first ten requests, and every one of them left a record with the reason. The other two are Gemini returning `503 UNAVAILABLE` (model overloaded) during the cost measurement; `generate.py` only retries on 429s, so these went straight to the caller as 500s:
+
+```json
+{"ts": "2026-11-25T16:54:05.989+00:00", "request_id": "f94dad51", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "error", "http_status": 500, "question": "What cities are the most accessible or walkable?", "answer": null, "error_type": "ClientError", "error": "400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]}}", "duration_ms": 6151.8, "model_calls": 1, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+{"ts": "2026-11-25T17:24:25.304+00:00", "request_id": "b351b1a8", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "error", "http_status": 500, "question": "Is the seafood at Halden Bay fresh?", "answer": null, "error_type": "ServerError", "error": "503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}", "duration_ms": 12146.3, "model_calls": 1, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+{"ts": "2026-11-25T17:25:43.817+00:00", "request_id": "f66fa9a7", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "error", "http_status": 500, "question": "What cities are the most accessible or walkable?", "answer": null, "error_type": "ServerError", "error": "503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}", "duration_ms": 17190.2, "model_calls": 1, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+```
+
+Read the log back with `python tools/read_log.py` (counts by status, latency, where the time goes, tokens). Over that whole session: 52 records — 8 answered, 17 refused, 15 bad requests, 12 errors (10 invalid key, 2 × 503). Every request I sent has a record.
+
+**What It Costs**
+
+**Measured: about 645 tokens per answered question (≈599 in, ≈46 out), one model call, ≈$0.0003 at paid-tier prices. $0 on the free tier I actually use.**
+
+How I measured it: started the service with the cache off (`$env:AI201_CACHE="0"; python serve.py`) and ran `python tools/measure_cost.py`, which sends my five in-corpus questions twice (10 requests) to `POST /ask`, then matches each response's `request_id` to its log record and averages the token counts the Gemini API reported for that request. Two of the ten hit a Gemini 503 and produced no tokens, so the average is over the **8** that answered: 4,789 prompt tokens and 371 output tokens in total → 598.6 in and 46.4 out per request.
+
+Converted at the paid-tier price for `gemini-3.5-flash-lite` ($0.30 per 1M input, $2.50 per 1M output):
+
+```
+598.6 / 1,000,000 × $0.30  = $0.000180
+ 46.4 / 1,000,000 × $2.50  = $0.000116
+                   per run ≈ $0.000296
+```
+
+A hundred people asking one question a day: 100 × $0.000296 = **$0.030/day**, about **$0.89 a month** (× 30). Refused questions cost nothing in tokens — the gate stops them before the model is called — so this is an upper bound for a mix of in- and out-of-scope questions.
+
+Time is the other cost. Over the same 8 answered requests, the median was 1.25 s, but the mean was 7.9 s because one took 45.6 s; generation was 98% of the time (7.7 s mean) and retrieval about 0.17 s. Refusals took about 0.12 s.
