@@ -488,3 +488,79 @@ Converted at the paid-tier price for `gemini-3.5-flash-lite` ($0.30 per 1M input
 A hundred people asking one question a day: 100 × $0.000296 = **$0.030/day**, about **$0.89 a month** (× 30). Refused questions cost nothing in tokens — the gate stops them before the model is called — so this is an upper bound for a mix of in- and out-of-scope questions.
 
 Time is the other cost. Over the same 8 answered requests, the median was 1.25 s, but the mean was 7.9 s because one took 45.6 s; generation was 98% of the time (7.7 s mean) and retrieval about 0.17 s. Refusals took about 0.12 s.
+
+**Run Log and Verdicts**
+
+My five criteria are in [`criteria.md`](criteria.md) under **Capstone criteria**, committed in `96d785f add capstone criteria` before any trial ran. The results are in `e387b96 record capstone before trial results`. All three trials came from one run of `python tools/run_trials.py --label before`, changing nothing in between. Each trial sent 18 requests through `serve.py::ask`: my 5 in-corpus questions (real Gemini calls, cache off), my 5 out-of-scope questions, 5 malformed requests, and 3 injected generation failures (invalid key, 503 overload, timeout — the model client is swapped for one that raises). Full output: `results/capstone_2026-11-25_1350_before.md`, log records in `logs/trials_before.jsonl`.
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Every trial request leaves a matching log record | 18 of 18 | 18/18 | 18/18 | 18/18 | MET |
+| 2. Real in-corpus questions get a 200 with an answer | 4 of 5 | 5/5 | 3/5 | 5/5 | MISSED |
+| 3. Out-of-scope questions refused with zero tokens | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Malformed input returns 400, logged, no 500 | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 5. Injected provider failures logged as errors | 3 of 3 | 3/3 | 3/3 | 3/3 | MET |
+
+Criterion 2 is a miss even though runs 1 and 3 hit 5/5: the target has to hold in every trial, and run 2 came out at 3.
+
+Real output, one run each. Produced by `tools/run_trials.py::main` → `serve.py::ask` → `runlog.py::write`.
+
+*Criterion 1* (run 1) — the `request_id` each response returned, matched to the record in `logs/trials_before.jsonl`, one per request group:
+
+```
+returned request_id 5f227f50 (in_corpus, HTTP 200) -> log status answered
+returned request_id 7eceed7e (out_of_scope, HTTP 200) -> log status refused
+returned request_id 76f6473a (bad_input, HTTP 400) -> log status bad_request
+returned request_id a5c33d12 (injected, HTTP 500) -> log status error
+```
+
+*Criterion 2* (run 2) — the two misses, as logged:
+
+```json
+{"ts": "2026-11-25T17:51:20.284+00:00", "request_id": "ee860d8a", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "error", "http_status": 500, "question": "If I visit Elder Ness, will I see birds?", "answer": null, "error_type": "ServerError", "error": "503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}", "duration_ms": 1429.9, "model_calls": 1, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+{"ts": "2026-11-25T17:51:22.230+00:00", "request_id": "e8d198cd", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "error", "http_status": 500, "question": "How many people reside in Marchwood?", "answer": null, "error_type": "ServerError", "error": "503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}", "duration_ms": 1942.6, "model_calls": 1, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+```
+
+and one of the three that passed in the same run:
+
+```json
+{"ts": "2026-11-25T17:51:15.063+00:00", "request_id": "afb4fa19", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "answered", "http_status": 200, "question": "What cities are the most accessible or walkable?", "answer": "According to `guide_accessibility.md`, **Thornby Wells** is described as the easiest town in the region because it is flat, compact, and everything is within three minutes of everything else. **Marchwood** has a modern tram network with level boarding, and **Brightwater** is level along the river and through the centre (`guide_accessibility.md`). Additionally, `guide_walking.md` notes that **Thornby Wells** is the region's most accessible town on foot with flat, formal gardens and level streets.", "sources": ["guide_accessibility.md", "guide_corry_vale.md", "guide_regional_transport.md", "guide_walking.md"], "best_distance": 0.6003, "retrieval_ms": 111.5, "generation_ms": 2616.7, "duration_ms": 2728.6, "model_calls": 1, "prompt_tokens": 824, "output_tokens": 111, "total_tokens": 935, "cache_hits": 0}
+```
+
+*Criterion 3* (run 3):
+
+```json
+{"ts": "2026-11-25T17:51:59.405+00:00", "request_id": "daf1cf24", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "refused", "http_status": 200, "question": "What is the capital of Mongolia?", "answer": "I don't have enough information about that.", "sources": [], "best_distance": 0.8463, "retrieval_ms": 103.0, "generation_ms": null, "duration_ms": 103.2, "model_calls": 0, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+```
+
+All five out-of-scope answers in all three runs were exactly `"I don't have enough information about that."` with `total_tokens: 0`.
+
+*Criterion 4* (run 2) — the five malformed requests:
+
+```json
+{"ts": "2026-11-25T17:51:22.755+00:00", "request_id": "ac42e4e9", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "bad_request", "http_status": 400, "question": null, "answer": null, "error": "Send JSON with a question in it, like {\"question\": \"is the housing lottery random?\"}", "raw_body": "{}", "duration_ms": 0.2}
+{"ts": "2026-11-25T17:51:22.758+00:00", "request_id": "af86de23", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "bad_request", "http_status": 400, "question": null, "answer": null, "error": "Send JSON with a question in it, like {\"question\": \"is the housing lottery random?\"}", "raw_body": "{\"question\": \"\"}", "duration_ms": 0.2}
+{"ts": "2026-11-25T17:51:22.760+00:00", "request_id": "18d731a2", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "bad_request", "http_status": 400, "question": null, "answer": null, "error": "Send JSON with a question in it, like {\"question\": \"is the housing lottery random?\"}", "raw_body": "{\"question\": \"   \"}", "duration_ms": 0.1}
+{"ts": "2026-11-25T17:51:22.762+00:00", "request_id": "c1367e7c", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "bad_request", "http_status": 400, "question": null, "answer": null, "error": "Send JSON with a question in it, like {\"question\": \"is the housing lottery random?\"}", "raw_body": "{\"question\": 42}", "duration_ms": 0.3}
+{"ts": "2026-11-25T17:51:22.763+00:00", "request_id": "800e2657", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "bad_request", "http_status": 400, "question": null, "answer": null, "error": "Send JSON with a question in it, like {\"question\": \"is the housing lottery random?\"}", "raw_body": "this is not json", "duration_ms": 0.1}
+```
+
+*Criterion 5* (run 3) — the three injected failures:
+
+```json
+{"ts": "2026-11-25T17:51:59.890+00:00", "request_id": "99685caf", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "error", "http_status": 500, "question": "What cities are the most accessible or walkable?", "answer": null, "error_type": "RuntimeError", "error": "400 INVALID_ARGUMENT. API key not valid. (injected by run_trials)", "duration_ms": 95.7, "model_calls": 1, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+{"ts": "2026-11-25T17:51:59.982+00:00", "request_id": "cc51fb83", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "error", "http_status": 500, "question": "Is the seafood at Halden Bay fresh?", "answer": null, "error_type": "RuntimeError", "error": "503 UNAVAILABLE. This model is currently experiencing high demand. (injected by run_trials)", "duration_ms": 89.3, "model_calls": 1, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+{"ts": "2026-11-25T17:52:00.079+00:00", "request_id": "27a29bb2", "route": "/ask", "corpus": "city_guides", "model": "gemini-3.5-flash-lite", "threshold": 0.62, "top_k": 5, "status": "error", "http_status": 500, "question": "Where is Correy Vale's closest hospital?", "answer": null, "error_type": "TimeoutError", "error": "The read operation timed out (injected by run_trials)", "duration_ms": 95.5, "model_calls": 1, "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_hits": 0}
+```
+
+**Diagnosis**
+
+*Criterion 2 — MISSED (3/5 in run 2).*
+
+**Stage:** generation, specifically the retry loop in `generate.py::generate`.
+
+**Mechanism:** Both misses were real Gemini responses of `503 UNAVAILABLE — This model is currently experiencing high demand… Please try again later`, two seconds apart in the same trial. `generate()` already has a retry loop with backoff, but it decides whether to retry by looking for `429`, "resource exhausted" or "rate limit" in the error message. A 503 matches none of those, so it falls into `if not rate_limited: raise` on the **first** attempt, and `serve.py::ask` turns it into a 500 after about 1.4–1.9 s. The provider was telling the caller to try again, and the code that knows how to try again never ran. My Unit 1 system had the same gap; it just never showed up, because nothing logged it and I never ran it enough times. The first session log had the same failure twice (`b351b1a8`, `f66fa9a7`), so it isn't a one-off.
+
+The other four criteria were met, and three of them (3, 4, 5) were set at the maximum possible target, so they couldn't be tightened. What I'd question is criterion 5: it only checks that an injected failure is *recorded*. It says nothing about whether a 503, which is temporary, should have been a failure at all. That's the same gap criterion 2 found from the other side.
+
+**Pattern:** there's only one miss, but it's the same thing the first session log showed. The service's failure handling is correct for errors that are permanent (a bad key, bad input) and wrong for errors that are temporary, because it treats them the same way.
